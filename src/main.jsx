@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Cigarette, Clock3, Target, WineOff } from 'lucide-react';
+import { Check, Cigarette, Clock3, Plus, Target, Trash2, WineOff } from 'lucide-react';
 import './styles.css';
 
 const START_DATE = new Date(1990, 4, 23, 0, 0, 0, 0);
@@ -116,6 +116,8 @@ function getOverallProgress(now) {
 
 function App() {
   const [now, setNow] = useState(() => new Date());
+  const [todoText, setTodoText] = useState('');
+  const [todos, setTodos] = useState([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -130,74 +132,157 @@ function App() {
     { icon: Cigarette, startDate: NO_CIGARETTES_START_DATE, title: 'No Cigarettes' },
   ];
 
+  function addTodo(event) {
+    event.preventDefault();
+
+    const text = todoText.trim();
+    if (!text) {
+      return;
+    }
+
+    setTodos((items) => [
+      {
+        id: crypto.randomUUID(),
+        isDone: false,
+        text,
+      },
+      ...items,
+    ]);
+    setTodoText('');
+  }
+
+  function toggleTodo(id) {
+    setTodos((items) =>
+      items.map((item) => (item.id === id ? { ...item, isDone: !item.isDone } : item)),
+    );
+  }
+
+  function deleteTodo(id) {
+    setTodos((items) => items.filter((item) => item.id !== id));
+  }
+
   return (
     <main className="app-shell">
-      <section className="countdown-panel" aria-label="Money countdown">
-        <div className="panel-topline">
-          <span className="status-pill">
-            <Clock3 size={16} aria-hidden="true" />
-            Live countdown
-          </span>
-          <span className="target-date">
-            <Target size={16} aria-hidden="true" />
-            {formatDate(TARGET_DATE)}
-          </span>
-        </div>
+      <div className="app-layout">
+        <section className="countdown-panel" aria-label="Money countdown">
+          <div className="panel-topline">
+            <span className="status-pill">
+              <Clock3 size={16} aria-hidden="true" />
+              Live countdown
+            </span>
+            <span className="target-date">
+              <Target size={16} aria-hidden="true" />
+              {formatDate(TARGET_DATE)}
+            </span>
+          </div>
 
-        <div className="hero-copy">
-          <p className="kicker">Amount still needed with 2% yearly inflation</p>
-          <h1>{formatCurrency(countdown.amount)}</h1>
-        </div>
+          <div className="hero-copy">
+            <p className="kicker">Amount still needed with 2% yearly inflation</p>
+            <h1>{formatCurrency(countdown.amount)}</h1>
+          </div>
 
-        <div className="progress-block" aria-label="Progress from May 23, 1990 to May 23, 2070">
-          <div className="progress-row">
-            <span>Start</span>
-            <strong>{(overallProgress * 100).toFixed(6)}%</strong>
-            <span>Finish</span>
+          <div className="progress-block" aria-label="Progress from May 23, 1990 to May 23, 2070">
+            <div className="progress-row">
+              <span>Start</span>
+              <strong>{(overallProgress * 100).toFixed(6)}%</strong>
+              <span>Finish</span>
+            </div>
+            <div className="progress-track">
+              <span style={{ width: `${overallProgress * 100}%` }} />
+            </div>
           </div>
-          <div className="progress-track">
-            <span style={{ width: `${overallProgress * 100}%` }} />
-          </div>
-        </div>
 
-        <div className="time-grid" aria-label="Time remaining">
-          <div>
-            <strong>{duration.days.toLocaleString('en-US')}</strong>
-            <span>days</span>
+          <div className="time-grid" aria-label="Time remaining">
+            <div>
+              <strong>{duration.days.toLocaleString('en-US')}</strong>
+              <span>days</span>
+            </div>
+            <div>
+              <strong>{duration.hours.toString().padStart(2, '0')}</strong>
+              <span>hours</span>
+            </div>
+            <div>
+              <strong>{duration.minutes.toString().padStart(2, '0')}</strong>
+              <span>minutes</span>
+            </div>
+            <div>
+              <strong>{duration.seconds.toString().padStart(2, '0')}</strong>
+              <span>seconds</span>
+            </div>
           </div>
-          <div>
-            <strong>{duration.hours.toString().padStart(2, '0')}</strong>
-            <span>hours</span>
-          </div>
-          <div>
-            <strong>{duration.minutes.toString().padStart(2, '0')}</strong>
-            <span>minutes</span>
-          </div>
-          <div>
-            <strong>{duration.seconds.toString().padStart(2, '0')}</strong>
-            <span>seconds</span>
-          </div>
-        </div>
 
-        <div className="health-grid" aria-label="Health streak counters">
-          {healthSections.map(({ icon: Icon, startDate, title }) => (
-            <section className="health-card" key={title} aria-label={title}>
-              <div className="health-heading">
-                <Icon size={20} aria-hidden="true" />
-                <h2>{title}</h2>
-              </div>
-              <div className="health-time">
-                {formatElapsedTime(now.getTime() - startDate.getTime()).map((item) => (
-                  <div key={item.label}>
-                    <strong>{item.value}</strong>
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </section>
+          <div className="health-grid" aria-label="Health streak counters">
+            {healthSections.map(({ icon: Icon, startDate, title }) => (
+              <section className="health-card" key={title} aria-label={title}>
+                <div className="health-heading">
+                  <Icon size={20} aria-hidden="true" />
+                  <h2>{title}</h2>
+                </div>
+                <div className="health-time">
+                  {formatElapsedTime(now.getTime() - startDate.getTime()).map((item) => (
+                    <div key={item.label}>
+                      <strong>{item.value}</strong>
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
+
+        <aside className="todo-panel" aria-label="Emergency to-do list">
+          <div className="todo-header">
+            <p className="kicker">Emergency</p>
+            <h2>To-do list</h2>
+          </div>
+
+          <form className="todo-form" onSubmit={addTodo}>
+            <label className="sr-only" htmlFor="todo-input">
+              Add emergency task
+            </label>
+            <input
+              id="todo-input"
+              onChange={(event) => setTodoText(event.target.value)}
+              placeholder="Add urgent task"
+              value={todoText}
+            />
+            <button type="submit" aria-label="Add task">
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </form>
+
+          {todos.length > 0 ? (
+            <ul className="todo-list">
+              {todos.map((todo) => (
+                <li className={todo.isDone ? 'is-done' : undefined} key={todo.id}>
+                  <button
+                    className="todo-check"
+                    onClick={() => toggleTodo(todo.id)}
+                    type="button"
+                    aria-label={todo.isDone ? 'Mark task as active' : 'Mark task as done'}
+                  >
+                    {todo.isDone && <Check size={14} aria-hidden="true" />}
+                  </button>
+                  <span>{todo.text}</span>
+                  <button
+                    className="todo-delete"
+                    onClick={() => deleteTodo(todo.id)}
+                    type="button"
+                    aria-label="Delete task"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="todo-empty">
+              <span>No urgent tasks</span>
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }
