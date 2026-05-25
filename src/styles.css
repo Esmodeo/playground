@@ -353,9 +353,17 @@ h1 {
 }
 
 .todo-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   margin: -4px 0 14px;
   color: var(--green);
   font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.todo-sync svg {
+  flex: 0 0 auto;
 }
 
 .todo-sync.is-error {

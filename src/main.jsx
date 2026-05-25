@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, Cigarette, Clock3, Plus, Target, Trash2, WineOff } from 'lucide-react';
+import { Check, Cigarette, Clock3, Database, Plus, Target, Trash2, WineOff } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
@@ -323,6 +323,7 @@ function App() {
           </form>
 
           <div className={todoError ? 'todo-sync is-error' : 'todo-sync'}>
+            <Database size={14} aria-hidden="true" />
             <span>{todoError || (todoUserId ? 'Synced with Firebase' : 'Connecting to Firebase')}</span>
           </div>
 
