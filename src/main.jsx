@@ -24,6 +24,7 @@ const NO_CIGARETTES_START_DATE = new Date(2026, 4, 25, 13, 0, 0, 0);
 const MONTHLY_AMOUNT = 3000;
 const ANNUAL_INFLATION_RATE = 0.02;
 const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
+const TODO_COLLECTION = 'todos';
 
 function addMonths(date, amount) {
   const next = new Date(date);
@@ -128,8 +129,8 @@ function getOverallProgress(now) {
   return Math.max(0, Math.min(1, elapsed / total));
 }
 
-function getTodosQuery(userId) {
-  return query(collection(db, 'users', userId, 'todos'), orderBy('createdAt', 'desc'));
+function getTodosQuery() {
+  return query(collection(db, TODO_COLLECTION), orderBy('createdAt', 'desc'));
 }
 
 function mapTodosSnapshot(snapshot) {
@@ -171,7 +172,7 @@ function App() {
     }
 
     return onSnapshot(
-      getTodosQuery(todoUserId),
+      getTodosQuery(),
       (snapshot) => {
         setTodos(mapTodosSnapshot(snapshot));
         setTodoError('');
@@ -197,7 +198,7 @@ function App() {
 
     setIsSyncingTodos(true);
     try {
-      const snapshot = await getDocs(getTodosQuery(todoUserId));
+      const snapshot = await getDocs(getTodosQuery());
       setTodos(mapTodosSnapshot(snapshot));
       setTodoError('');
     } catch {
@@ -217,7 +218,7 @@ function App() {
 
     setTodoText('');
     try {
-      await addDoc(collection(db, 'users', todoUserId, 'todos'), {
+      await addDoc(collection(db, TODO_COLLECTION), {
         createdAt: serverTimestamp(),
         isDone: false,
         text,
@@ -234,7 +235,7 @@ function App() {
     }
 
     try {
-      await updateDoc(doc(db, 'users', todoUserId, 'todos', todo.id), {
+      await updateDoc(doc(db, TODO_COLLECTION, todo.id), {
         isDone: !todo.isDone,
       });
     } catch {
@@ -248,7 +249,7 @@ function App() {
     }
 
     try {
-      await deleteDoc(doc(db, 'users', todoUserId, 'todos', id));
+      await deleteDoc(doc(db, TODO_COLLECTION, id));
     } catch {
       setTodoError('Could not delete task');
     }

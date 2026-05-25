@@ -5,5 +5,9 @@ service cloud.firestore {
     match /users/{userId}/todos/{todoId} {
       allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /todos/{todoId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
   }
 }
