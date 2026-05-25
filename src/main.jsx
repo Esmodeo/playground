@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, Cigarette, Clock3, Plus, RefreshCw, Target, Trash2, WineOff } from 'lucide-react';
+import { Check, Cigarette, Clock3, Pencil, Plus, RefreshCw, Target, Trash2, WineOff, X } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
@@ -12,6 +12,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -25,6 +26,19 @@ const MONTHLY_AMOUNT = 3000;
 const ANNUAL_INFLATION_RATE = 0.02;
 const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
 const TODO_COLLECTION = 'todos';
+const HEALTH_SETTINGS_COLLECTION = 'settings';
+const HEALTH_DEFAULTS = {
+  noAlcohol: {
+    icon: WineOff,
+    startDate: NO_ALCOHOL_START_DATE,
+    title: 'No alcohol',
+  },
+  noCigarettes: {
+    icon: Cigarette,
+    startDate: NO_CIGARETTES_START_DATE,
+    title: 'No Cigarettes',
+  },
+};
 
 function addMonths(date, amount) {
   const next = new Date(date);
@@ -129,6 +143,20 @@ function getOverallProgress(now) {
   return Math.max(0, Math.min(1, elapsed / total));
 }
 
+function toDateInputValue(date) {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
+function parseStoredDate(value, fallback) {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
 function getTodosQuery() {
   return query(collection(db, TODO_COLLECTION), orderBy('createdAt', 'desc'));
 }
@@ -147,6 +175,13 @@ function App() {
   const [todoError, setTodoError] = useState('');
   const [todoUserId, setTodoUserId] = useState('');
   const [isSyncingTodos, setIsSyncingTodos] = useState(false);
+  const [healthStartDates, setHealthStartDates] = useState(() =>
+    Object.fromEntries(Object.entries(HEALTH_DEFAULTS).map(([id, section]) => [id, section.startDate])),
+  );
+  const [healthEditor, setHealthEditor] = useState(null);
+  const [healthDraftDate, setHealthDraftDate] = useState('');
+  const [healthError, setHealthError] = useState('');
+  const [isSavingHealthDate, setIsSavingHealthDate] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -183,13 +218,89 @@ function App() {
     );
   }, [todoUserId]);
 
+  useEffect(() => {
+    if (!todoUserId) {
+      return undefined;
+    }
+
+    const unsubscribers = Object.entries(HEALTH_DEFAULTS).map(([id, section]) =>
+      onSnapshot(
+        doc(db, HEALTH_SETTINGS_COLLECTION, id),
+        (snapshot) => {
+          const startDate = parseStoredDate(snapshot.data()?.startDate, section.startDate);
+          setHealthStartDates((current) => ({
+            ...current,
+            [id]: startDate,
+          }));
+          setHealthError('');
+        },
+        () => {
+          setHealthError('Could not load start dates');
+        },
+      ),
+    );
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [todoUserId]);
+
   const countdown = useMemo(() => getCountdown(now), [now]);
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
   const overallProgress = useMemo(() => getOverallProgress(now), [now]);
-  const healthSections = [
-    { icon: WineOff, startDate: NO_ALCOHOL_START_DATE, title: 'No alcohol' },
-    { icon: Cigarette, startDate: NO_CIGARETTES_START_DATE, title: 'No Cigarettes' },
-  ];
+  const healthSections = Object.entries(HEALTH_DEFAULTS).map(([id, section]) => ({
+    ...section,
+    id,
+    startDate: healthStartDates[id] || section.startDate,
+  }));
+
+  function openHealthEditor(section) {
+    setHealthEditor(section);
+    setHealthDraftDate(toDateInputValue(section.startDate));
+    setHealthError('');
+  }
+
+  function closeHealthEditor() {
+    if (isSavingHealthDate) {
+      return;
+    }
+
+    setHealthEditor(null);
+    setHealthDraftDate('');
+  }
+
+  async function saveHealthStartDate(event) {
+    event.preventDefault();
+
+    if (!healthEditor || !todoUserId) {
+      return;
+    }
+
+    const nextDate = new Date(healthDraftDate);
+    if (!healthDraftDate || Number.isNaN(nextDate.getTime())) {
+      setHealthError('Choose a valid date and time');
+      return;
+    }
+
+    setIsSavingHealthDate(true);
+    try {
+      await setDoc(
+        doc(db, HEALTH_SETTINGS_COLLECTION, healthEditor.id),
+        {
+          startDate: nextDate.toISOString(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      setHealthEditor(null);
+      setHealthDraftDate('');
+      setHealthError('');
+    } catch {
+      setHealthError('Could not save start date');
+    } finally {
+      setIsSavingHealthDate(false);
+    }
+  }
 
   async function syncTodos() {
     if (!todoUserId || isSyncingTodos) {
@@ -306,11 +417,26 @@ function App() {
           </div>
 
           <div className="health-grid" aria-label="Health streak counters">
-            {healthSections.map(({ icon: Icon, startDate, title }) => (
+            {healthSections.map((section) => {
+              const { icon: Icon, startDate, title } = section;
+
+              return (
               <section className="health-card" key={title} aria-label={title}>
                 <div className="health-heading">
-                  <Icon size={20} aria-hidden="true" />
-                  <h2>{title}</h2>
+                  <div className="health-title">
+                    <Icon size={20} aria-hidden="true" />
+                    <h2>{title}</h2>
+                  </div>
+                  <button
+                    aria-label={`Edit ${title} start date`}
+                    className="health-edit"
+                    disabled={!todoUserId}
+                    onClick={() => openHealthEditor(section)}
+                    title={`Edit ${title} start date`}
+                    type="button"
+                  >
+                    <Pencil size={15} aria-hidden="true" />
+                  </button>
                 </div>
                 <div className="health-time">
                   {formatElapsedTime(now.getTime() - startDate.getTime()).map((item) => (
@@ -321,7 +447,8 @@ function App() {
                   ))}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -392,6 +519,38 @@ function App() {
           )}
         </aside>
       </div>
+
+      {healthEditor && (
+        <div className="dialog-backdrop" role="presentation" onClick={closeHealthEditor}>
+          <section
+            aria-labelledby="health-dialog-title"
+            aria-modal="true"
+            className="health-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="dialog-heading">
+              <h2 id="health-dialog-title">Edit {healthEditor.title}</h2>
+              <button aria-label="Close dialog" onClick={closeHealthEditor} type="button">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <form className="health-dialog-form" onSubmit={saveHealthStartDate}>
+              <label htmlFor="health-start-date">Start date and time</label>
+              <input
+                id="health-start-date"
+                onChange={(event) => setHealthDraftDate(event.target.value)}
+                type="datetime-local"
+                value={healthDraftDate}
+              />
+              {healthError && <p className="dialog-error">{healthError}</p>}
+              <button disabled={isSavingHealthDate || !todoUserId} type="submit">
+                {isSavingHealthDate ? 'Saving' : 'Save'}
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
