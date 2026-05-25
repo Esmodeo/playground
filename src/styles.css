@@ -314,6 +314,11 @@ h1 {
   color: #718094;
 }
 
+.todo-form input:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
 .todo-form button,
 .todo-check,
 .todo-delete {
@@ -340,6 +345,21 @@ h1 {
 .todo-check:hover {
   border-color: rgba(78, 224, 164, 0.5);
   background: rgba(78, 224, 164, 0.18);
+}
+
+.todo-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.todo-sync {
+  margin: -4px 0 14px;
+  color: var(--green);
+  font-size: 0.76rem;
+}
+
+.todo-sync.is-error {
+  color: var(--rose);
 }
 
 .todo-list {

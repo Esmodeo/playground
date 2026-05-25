@@ -1,6 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Check, Cigarette, Clock3, Plus, Target, Trash2, WineOff } from 'lucide-react';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore';
+import { auth, db } from './firebase';
 import './styles.css';
 
 const START_DATE = new Date(1990, 4, 23, 0, 0, 0, 0);
@@ -118,11 +131,49 @@ function App() {
   const [now, setNow] = useState(() => new Date());
   const [todoText, setTodoText] = useState('');
   const [todos, setTodos] = useState([]);
+  const [todoError, setTodoError] = useState('');
+  const [todoUserId, setTodoUserId] = useState('');
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setTodoUserId(user?.uid || '');
+    });
+
+    signInAnonymously(auth).catch(() => {
+      setTodoError('Firebase connection failed');
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!todoUserId) {
+      setTodos([]);
+      return undefined;
+    }
+
+    const todosQuery = query(collection(db, 'users', todoUserId, 'todos'), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      todosQuery,
+      (snapshot) => {
+        setTodos(
+          snapshot.docs.map((todoDoc) => ({
+            id: todoDoc.id,
+            ...todoDoc.data(),
+          })),
+        );
+        setTodoError('');
+      },
+      () => {
+        setTodoError('Could not load tasks');
+      },
+    );
+  }, [todoUserId]);
 
   const countdown = useMemo(() => getCountdown(now), [now]);
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
@@ -132,33 +183,51 @@ function App() {
     { icon: Cigarette, startDate: NO_CIGARETTES_START_DATE, title: 'No Cigarettes' },
   ];
 
-  function addTodo(event) {
+  async function addTodo(event) {
     event.preventDefault();
 
     const text = todoText.trim();
-    if (!text) {
+    if (!text || !todoUserId) {
       return;
     }
 
-    setTodos((items) => [
-      {
-        id: crypto.randomUUID(),
+    setTodoText('');
+    try {
+      await addDoc(collection(db, 'users', todoUserId, 'todos'), {
+        createdAt: serverTimestamp(),
         isDone: false,
         text,
-      },
-      ...items,
-    ]);
-    setTodoText('');
+      });
+    } catch {
+      setTodoText(text);
+      setTodoError('Could not add task');
+    }
   }
 
-  function toggleTodo(id) {
-    setTodos((items) =>
-      items.map((item) => (item.id === id ? { ...item, isDone: !item.isDone } : item)),
-    );
+  async function toggleTodo(todo) {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', todoUserId, 'todos', todo.id), {
+        isDone: !todo.isDone,
+      });
+    } catch {
+      setTodoError('Could not update task');
+    }
   }
 
-  function deleteTodo(id) {
-    setTodos((items) => items.filter((item) => item.id !== id));
+  async function deleteTodo(id) {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'users', todoUserId, 'todos', id));
+    } catch {
+      setTodoError('Could not delete task');
+    }
   }
 
   return (
@@ -242,15 +311,20 @@ function App() {
               Add emergency task
             </label>
             <input
+              disabled={!todoUserId}
               id="todo-input"
               onChange={(event) => setTodoText(event.target.value)}
-              placeholder="Add urgent task"
+              placeholder={todoUserId ? 'Add urgent task' : 'Connecting'}
               value={todoText}
             />
-            <button type="submit" aria-label="Add task">
+            <button type="submit" aria-label="Add task" disabled={!todoUserId || !todoText.trim()}>
               <Plus size={18} aria-hidden="true" />
             </button>
           </form>
+
+          <div className={todoError ? 'todo-sync is-error' : 'todo-sync'}>
+            <span>{todoError || (todoUserId ? 'Synced with Firebase' : 'Connecting to Firebase')}</span>
+          </div>
 
           {todos.length > 0 ? (
             <ul className="todo-list">
@@ -258,7 +332,7 @@ function App() {
                 <li className={todo.isDone ? 'is-done' : undefined} key={todo.id}>
                   <button
                     className="todo-check"
-                    onClick={() => toggleTodo(todo.id)}
+                    onClick={() => toggleTodo(todo)}
                     type="button"
                     aria-label={todo.isDone ? 'Mark task as active' : 'Mark task as done'}
                   >
