@@ -362,12 +362,54 @@ h1 {
   line-height: 1.2;
 }
 
-.todo-sync svg {
+.todo-sync-button {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(78, 224, 164, 0.28);
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(78, 224, 164, 0.1);
+  color: currentColor;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.todo-sync-button:hover:not(:disabled) {
+  border-color: rgba(78, 224, 164, 0.5);
+  background: rgba(78, 224, 164, 0.18);
+  transform: translateY(-1px);
+}
+
+.todo-sync-button:disabled {
+  cursor: wait;
+  opacity: 0.56;
+}
+
+.todo-sync-button svg {
   flex: 0 0 auto;
+}
+
+.todo-sync-button.is-syncing svg {
+  animation: sync-spin 700ms linear infinite;
 }
 
 .todo-sync.is-error {
   color: var(--rose);
+}
+
+.todo-sync.is-error .todo-sync-button {
+  border-color: rgba(255, 111, 145, 0.32);
+  background: rgba(255, 111, 145, 0.1);
+}
+
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .todo-list {

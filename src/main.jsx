@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, Cigarette, Clock3, Database, Plus, Target, Trash2, WineOff } from 'lucide-react';
+import { Check, Cigarette, Clock3, Plus, RefreshCw, Target, Trash2, WineOff } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -127,12 +128,24 @@ function getOverallProgress(now) {
   return Math.max(0, Math.min(1, elapsed / total));
 }
 
+function getTodosQuery(userId) {
+  return query(collection(db, 'users', userId, 'todos'), orderBy('createdAt', 'desc'));
+}
+
+function mapTodosSnapshot(snapshot) {
+  return snapshot.docs.map((todoDoc) => ({
+    id: todoDoc.id,
+    ...todoDoc.data(),
+  }));
+}
+
 function App() {
   const [now, setNow] = useState(() => new Date());
   const [todoText, setTodoText] = useState('');
   const [todos, setTodos] = useState([]);
   const [todoError, setTodoError] = useState('');
   const [todoUserId, setTodoUserId] = useState('');
+  const [isSyncingTodos, setIsSyncingTodos] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -157,16 +170,10 @@ function App() {
       return undefined;
     }
 
-    const todosQuery = query(collection(db, 'users', todoUserId, 'todos'), orderBy('createdAt', 'desc'));
     return onSnapshot(
-      todosQuery,
+      getTodosQuery(todoUserId),
       (snapshot) => {
-        setTodos(
-          snapshot.docs.map((todoDoc) => ({
-            id: todoDoc.id,
-            ...todoDoc.data(),
-          })),
-        );
+        setTodos(mapTodosSnapshot(snapshot));
         setTodoError('');
       },
       () => {
@@ -182,6 +189,23 @@ function App() {
     { icon: WineOff, startDate: NO_ALCOHOL_START_DATE, title: 'No alcohol' },
     { icon: Cigarette, startDate: NO_CIGARETTES_START_DATE, title: 'No Cigarettes' },
   ];
+
+  async function syncTodos() {
+    if (!todoUserId || isSyncingTodos) {
+      return;
+    }
+
+    setIsSyncingTodos(true);
+    try {
+      const snapshot = await getDocs(getTodosQuery(todoUserId));
+      setTodos(mapTodosSnapshot(snapshot));
+      setTodoError('');
+    } catch {
+      setTodoError('Could not sync tasks');
+    } finally {
+      setIsSyncingTodos(false);
+    }
+  }
 
   async function addTodo(event) {
     event.preventDefault();
@@ -323,7 +347,16 @@ function App() {
           </form>
 
           <div className={todoError ? 'todo-sync is-error' : 'todo-sync'}>
-            <Database size={14} aria-hidden="true" />
+            <button
+              aria-label="Sync tasks from Firebase"
+              className={isSyncingTodos ? 'todo-sync-button is-syncing' : 'todo-sync-button'}
+              disabled={!todoUserId || isSyncingTodos}
+              onClick={syncTodos}
+              title="Sync tasks from Firebase"
+              type="button"
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+            </button>
             <span>{todoError || (todoUserId ? 'Synced with Firebase' : 'Connecting to Firebase')}</span>
           </div>
 
