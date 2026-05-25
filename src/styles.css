@@ -198,6 +198,65 @@ h1 {
   line-height: 1;
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.health-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.035));
+}
+
+.health-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--green);
+}
+
+.health-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.health-time {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.health-time div {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 5px;
+  padding: 10px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.17);
+}
+
+.health-time strong {
+  color: #dce8ff;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.health-time span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 @media (max-width: 680px) {
   .app-shell {
     padding: 14px;
@@ -228,5 +287,10 @@ h1 {
 
   .time-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-grid,
+  .health-time {
+    grid-template-columns: 1fr;
   }
 }
