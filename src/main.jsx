@@ -478,10 +478,7 @@ function App() {
       <div className="app-layout">
         <aside className="rates-card" aria-label="NBU currency exchange rates">
           <div className="rates-heading">
-            <div>
-              <p className="kicker">NBU official rate</p>
-              <h2>Currency in hryvnias</h2>
-            </div>
+            <p className="kicker">NBU official rate</p>
             <span>{exchangeDate || 'Today'}</span>
           </div>
           {exchangeError ? (
@@ -590,8 +587,7 @@ function App() {
 
         <aside className="todo-panel" aria-label="Emergency to-do list">
           <div className="todo-header">
-            <p className="kicker">Emergency</p>
-            <h2>To-do list</h2>
+            <p className="kicker">Emergency tasks</p>
           </div>
 
           <form className="todo-form" onSubmit={addTodo}>

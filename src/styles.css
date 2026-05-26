@@ -363,16 +363,16 @@ h1 {
 }
 
 .rates-heading {
-  display: grid;
-  gap: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
-.rates-heading h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 1rem;
-  font-weight: 800;
+.rates-heading .kicker,
+.todo-header .kicker {
+  margin-bottom: 0;
 }
 
 .rates-heading > span {
@@ -427,13 +427,6 @@ h1 {
 
 .todo-header {
   margin-bottom: 18px;
-}
-
-.todo-header h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 1.45rem;
-  line-height: 1.1;
 }
 
 .todo-form {
