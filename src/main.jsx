@@ -478,7 +478,7 @@ function App() {
       <div className="app-layout">
         <aside className="rates-card" aria-label="NBU currency exchange rates">
           <div className="rates-heading">
-            <p className="kicker">NBU official rate</p>
+            <p className="kicker">NBU rate</p>
             <span>{exchangeDate || 'Today'}</span>
           </div>
           {exchangeError ? (
