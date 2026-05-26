@@ -28,6 +28,7 @@ const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
 const TODO_COLLECTION = 'todos';
 const HEALTH_SETTINGS_COLLECTION = 'settings';
 const PIN_CODE = '2305';
+const NBU_EXCHANGE_RATES_URL = 'https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json';
 const HEALTH_DEFAULTS = {
   noAlcohol: {
     icon: WineOff,
@@ -169,6 +170,13 @@ function mapTodosSnapshot(snapshot) {
   }));
 }
 
+function formatRate(value) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
 function App() {
   const [now, setNow] = useState(() => new Date());
   const [todoText, setTodoText] = useState('');
@@ -186,6 +194,10 @@ function App() {
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState([]);
+  const [exchangeDate, setExchangeDate] = useState('');
+  const [exchangeError, setExchangeError] = useState('');
+  const [isLoadingExchangeRates, setIsLoadingExchangeRates] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -248,6 +260,50 @@ function App() {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, [isUnlocked, todoUserId]);
+
+  useEffect(() => {
+    if (!isUnlocked) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadExchangeRates() {
+      setIsLoadingExchangeRates(true);
+      try {
+        const response = await fetch(NBU_EXCHANGE_RATES_URL, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('NBU request failed');
+        }
+
+        const data = await response.json();
+        const nextRates = ['USD', 'EUR']
+          .map((code) => data.find((rate) => rate.cc === code))
+          .filter(Boolean);
+
+        setExchangeRates(nextRates);
+        setExchangeDate(nextRates[0]?.exchangedate || '');
+        setExchangeError('');
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setExchangeError('Could not load NBU rates');
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingExchangeRates(false);
+        }
+      }
+    }
+
+    loadExchangeRates();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isUnlocked]);
 
   const countdown = useMemo(() => getCountdown(now), [now]);
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
@@ -501,6 +557,35 @@ function App() {
               );
             })}
           </div>
+
+          <section className="rates-card" aria-label="NBU currency exchange rates">
+            <div className="rates-heading">
+              <div>
+                <p className="kicker">NBU official rate</p>
+                <h2>Currency in hryvnias</h2>
+              </div>
+              <span>{exchangeDate || 'Today'}</span>
+            </div>
+            {exchangeError ? (
+              <p className="rates-error">{exchangeError}</p>
+            ) : (
+              <div className="rates-grid">
+                {exchangeRates.length > 0
+                  ? exchangeRates.map((rate) => (
+                      <div key={rate.cc}>
+                        <span>{rate.cc === 'USD' ? 'Dollar' : 'Euro'}</span>
+                        <strong>{formatRate(rate.rate)} UAH</strong>
+                      </div>
+                    ))
+                  : ['USD', 'EUR'].map((code) => (
+                      <div key={code}>
+                        <span>{code === 'USD' ? 'Dollar' : 'Euro'}</span>
+                        <strong>{isLoadingExchangeRates ? 'Loading' : '-'}</strong>
+                      </div>
+                    ))}
+              </div>
+            )}
+          </section>
         </section>
 
         <aside className="todo-panel" aria-label="Emergency to-do list">
