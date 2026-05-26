@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, Cigarette, Clock3, Pencil, Plus, RefreshCw, Target, Trash2, WineOff, X } from 'lucide-react';
+import { Check, Cigarette, Clock3, CloudSun, Pencil, Plus, RefreshCw, Target, Trash2, WineOff, X } from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
@@ -29,6 +29,8 @@ const TODO_COLLECTION = 'todos';
 const HEALTH_SETTINGS_COLLECTION = 'settings';
 const PIN_CODE = '2305';
 const NBU_EXCHANGE_RATES_URL = 'https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json';
+const WEATHER_FORECAST_URL =
+  'https://api.open-meteo.com/v1/forecast?latitude=48.6845&longitude=26.5856&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FKyiv&forecast_days=3';
 const HEALTH_DEFAULTS = {
   noAlcohol: {
     icon: WineOff,
@@ -177,6 +179,52 @@ function formatRate(value) {
   }).format(value);
 }
 
+function getWeatherLabel(code) {
+  if (code === 0) {
+    return 'Clear';
+  }
+
+  if ([1, 2, 3].includes(code)) {
+    return 'Cloudy';
+  }
+
+  if ([45, 48].includes(code)) {
+    return 'Fog';
+  }
+
+  if ([51, 53, 55, 56, 57].includes(code)) {
+    return 'Drizzle';
+  }
+
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    return 'Rain';
+  }
+
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return 'Snow';
+  }
+
+  if ([95, 96, 99].includes(code)) {
+    return 'Storm';
+  }
+
+  return 'Forecast';
+}
+
+function formatWeatherDay(dateText, index) {
+  if (index === 0) {
+    return 'Today';
+  }
+
+  if (index === 1) {
+    return 'Tomorrow';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+  }).format(new Date(`${dateText}T12:00:00`));
+}
+
 function App() {
   const [now, setNow] = useState(() => new Date());
   const [todoText, setTodoText] = useState('');
@@ -198,6 +246,9 @@ function App() {
   const [exchangeDate, setExchangeDate] = useState('');
   const [exchangeError, setExchangeError] = useState('');
   const [isLoadingExchangeRates, setIsLoadingExchangeRates] = useState(false);
+  const [weather, setWeather] = useState(null);
+  const [weatherError, setWeatherError] = useState('');
+  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -299,6 +350,45 @@ function App() {
     }
 
     loadExchangeRates();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isUnlocked]);
+
+  useEffect(() => {
+    if (!isUnlocked) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadWeather() {
+      setIsLoadingWeather(true);
+      try {
+        const response = await fetch(WEATHER_FORECAST_URL, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('Weather request failed');
+        }
+
+        const data = await response.json();
+        setWeather(data);
+        setWeatherError('');
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setWeatherError('Could not load forecast');
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingWeather(false);
+        }
+      }
+    }
+
+    loadWeather();
 
     return () => {
       controller.abort();
@@ -476,31 +566,82 @@ function App() {
   return (
     <main className="app-shell">
       <div className="app-layout">
-        <aside className="rates-card" aria-label="NBU currency exchange rates">
-          <div className="rates-heading">
-            <p className="kicker">NBU rate</p>
-            <span>{exchangeDate || 'Today'}</span>
-          </div>
-          {exchangeError ? (
-            <p className="rates-error">{exchangeError}</p>
-          ) : (
-            <div className="rates-grid">
-              {exchangeRates.length > 0
-                ? exchangeRates.map((rate) => (
-                    <div key={rate.cc}>
-                      <span>{rate.cc === 'USD' ? 'Dollar' : 'Euro'}</span>
-                      <strong>{formatRate(rate.rate)} UAH</strong>
-                    </div>
-                  ))
-                : ['USD', 'EUR'].map((code) => (
-                    <div key={code}>
-                      <span>{code === 'USD' ? 'Dollar' : 'Euro'}</span>
-                      <strong>{isLoadingExchangeRates ? 'Loading' : '-'}</strong>
-                    </div>
-                  ))}
+        <div className="left-rail">
+          <aside className="rates-card" aria-label="NBU currency exchange rates">
+            <div className="rates-heading">
+              <p className="kicker">NBU rate</p>
+              <span>{exchangeDate || 'Today'}</span>
             </div>
-          )}
-        </aside>
+            {exchangeError ? (
+              <p className="rates-error">{exchangeError}</p>
+            ) : (
+              <div className="rates-grid">
+                {exchangeRates.length > 0
+                  ? exchangeRates.map((rate) => (
+                      <div key={rate.cc}>
+                        <span>{rate.cc === 'USD' ? 'Dollar' : 'Euro'}</span>
+                        <strong>{formatRate(rate.rate)} UAH</strong>
+                      </div>
+                    ))
+                  : ['USD', 'EUR'].map((code) => (
+                      <div key={code}>
+                        <span>{code === 'USD' ? 'Dollar' : 'Euro'}</span>
+                        <strong>{isLoadingExchangeRates ? 'Loading' : '-'}</strong>
+                      </div>
+                    ))}
+              </div>
+            )}
+          </aside>
+
+          <aside className="weather-card" aria-label="Weather forecast for Kamianets-Podilskyi">
+            <div className="weather-heading">
+              <div>
+                <p className="kicker">Weather</p>
+                <h2>Kamianets-Podilskyi</h2>
+              </div>
+              <CloudSun size={22} aria-hidden="true" />
+            </div>
+            {weatherError ? (
+              <p className="weather-error">{weatherError}</p>
+            ) : (
+              <>
+                <div className="weather-current">
+                  <span>{weather ? getWeatherLabel(weather.current.weather_code) : 'Forecast'}</span>
+                  <strong>
+                    {weather ? `${Math.round(weather.current.temperature_2m)}°C` : isLoadingWeather ? 'Loading' : '-'}
+                  </strong>
+                  <small>
+                    {weather
+                      ? `${weather.current.relative_humidity_2m}% humidity · ${Math.round(
+                          weather.current.wind_speed_10m,
+                        )} km/h wind`
+                      : 'Open-Meteo forecast'}
+                  </small>
+                </div>
+                <div className="weather-days">
+                  {weather
+                    ? weather.daily.time.map((dateText, index) => (
+                        <div key={dateText}>
+                          <span>{formatWeatherDay(dateText, index)}</span>
+                          <strong>
+                            {Math.round(weather.daily.temperature_2m_max[index])}° /{' '}
+                            {Math.round(weather.daily.temperature_2m_min[index])}°
+                          </strong>
+                          <small>{weather.daily.precipitation_probability_max[index]}% rain</small>
+                        </div>
+                      ))
+                    : [0, 1, 2].map((index) => (
+                        <div key={index}>
+                          <span>{index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : 'Next'}</span>
+                          <strong>-</strong>
+                          <small>{isLoadingWeather ? 'Loading' : 'No data'}</small>
+                        </div>
+                      ))}
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
 
         <section className="countdown-panel" aria-label="Money countdown">
           <div className="panel-topline">
