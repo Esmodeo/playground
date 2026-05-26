@@ -60,6 +60,58 @@ select {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 78%);
 }
 
+.pin-shell {
+  place-items: center;
+}
+
+.pin-panel {
+  display: grid;
+  width: min(100%, 420px);
+  gap: 18px;
+  padding: clamp(26px, 6vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(18px);
+}
+
+.pin-copy h1 {
+  font-size: clamp(2.4rem, 12vw, 4rem);
+}
+
+.pin-panel input {
+  width: 100%;
+  height: 58px;
+  border: 1px solid rgba(78, 224, 164, 0.3);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.26);
+  color: var(--ink);
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 0.48em;
+  padding: 0 16px 0 28px;
+  text-align: center;
+}
+
+.pin-panel input:focus {
+  border-color: rgba(78, 224, 164, 0.62);
+  box-shadow: 0 0 0 3px rgba(78, 224, 164, 0.14);
+}
+
+.pin-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pin-status.is-error {
+  color: var(--rose);
+}
+
 .app-layout {
   display: grid;
   grid-template-columns: minmax(0, 920px) minmax(300px, 360px);

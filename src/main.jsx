@@ -27,6 +27,7 @@ const ANNUAL_INFLATION_RATE = 0.02;
 const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
 const TODO_COLLECTION = 'todos';
 const HEALTH_SETTINGS_COLLECTION = 'settings';
+const PIN_CODE = '2305';
 const HEALTH_DEFAULTS = {
   noAlcohol: {
     icon: WineOff,
@@ -182,6 +183,9 @@ function App() {
   const [healthDraftDate, setHealthDraftDate] = useState('');
   const [healthError, setHealthError] = useState('');
   const [isSavingHealthDate, setIsSavingHealthDate] = useState(false);
+  const [pinValue, setPinValue] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -201,7 +205,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!todoUserId) {
+    if (!isUnlocked || !todoUserId) {
       setTodos([]);
       return undefined;
     }
@@ -216,10 +220,10 @@ function App() {
         setTodoError('Could not load tasks');
       },
     );
-  }, [todoUserId]);
+  }, [isUnlocked, todoUserId]);
 
   useEffect(() => {
-    if (!todoUserId) {
+    if (!isUnlocked || !todoUserId) {
       return undefined;
     }
 
@@ -243,7 +247,7 @@ function App() {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [todoUserId]);
+  }, [isUnlocked, todoUserId]);
 
   const countdown = useMemo(() => getCountdown(now), [now]);
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
@@ -364,6 +368,53 @@ function App() {
     } catch {
       setTodoError('Could not delete task');
     }
+  }
+
+  function handlePinChange(event) {
+    const nextValue = event.target.value.replace(/\D/g, '').slice(0, 4);
+    setPinValue(nextValue);
+    setPinError('');
+
+    if (nextValue.length !== 4) {
+      return;
+    }
+
+    if (nextValue === PIN_CODE) {
+      setIsUnlocked(true);
+      return;
+    }
+
+    setPinError('Wrong PIN');
+  }
+
+  if (!isUnlocked) {
+    return (
+      <main className="app-shell pin-shell">
+        <section className="pin-panel" aria-label="PIN lock screen">
+          <div className="pin-copy">
+            <p className="kicker">Private dashboard</p>
+            <h1>PIN code</h1>
+          </div>
+          <label className="sr-only" htmlFor="pin-code">
+            PIN code
+          </label>
+          <input
+            autoComplete="one-time-code"
+            autoFocus
+            id="pin-code"
+            inputMode="numeric"
+            maxLength={4}
+            onChange={handlePinChange}
+            pattern="[0-9]*"
+            type="password"
+            value={pinValue}
+          />
+          <div className={pinError ? 'pin-status is-error' : 'pin-status'}>
+            {pinError || `${pinValue.length}/4`}
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
