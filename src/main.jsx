@@ -476,6 +476,35 @@ function App() {
   return (
     <main className="app-shell">
       <div className="app-layout">
+        <aside className="rates-card" aria-label="NBU currency exchange rates">
+          <div className="rates-heading">
+            <div>
+              <p className="kicker">NBU official rate</p>
+              <h2>Currency in hryvnias</h2>
+            </div>
+            <span>{exchangeDate || 'Today'}</span>
+          </div>
+          {exchangeError ? (
+            <p className="rates-error">{exchangeError}</p>
+          ) : (
+            <div className="rates-grid">
+              {exchangeRates.length > 0
+                ? exchangeRates.map((rate) => (
+                    <div key={rate.cc}>
+                      <span>{rate.cc === 'USD' ? 'Dollar' : 'Euro'}</span>
+                      <strong>{formatRate(rate.rate)} UAH</strong>
+                    </div>
+                  ))
+                : ['USD', 'EUR'].map((code) => (
+                    <div key={code}>
+                      <span>{code === 'USD' ? 'Dollar' : 'Euro'}</span>
+                      <strong>{isLoadingExchangeRates ? 'Loading' : '-'}</strong>
+                    </div>
+                  ))}
+            </div>
+          )}
+        </aside>
+
         <section className="countdown-panel" aria-label="Money countdown">
           <div className="panel-topline">
             <span className="status-pill">
@@ -557,35 +586,6 @@ function App() {
               );
             })}
           </div>
-
-          <section className="rates-card" aria-label="NBU currency exchange rates">
-            <div className="rates-heading">
-              <div>
-                <p className="kicker">NBU official rate</p>
-                <h2>Currency in hryvnias</h2>
-              </div>
-              <span>{exchangeDate || 'Today'}</span>
-            </div>
-            {exchangeError ? (
-              <p className="rates-error">{exchangeError}</p>
-            ) : (
-              <div className="rates-grid">
-                {exchangeRates.length > 0
-                  ? exchangeRates.map((rate) => (
-                      <div key={rate.cc}>
-                        <span>{rate.cc === 'USD' ? 'Dollar' : 'Euro'}</span>
-                        <strong>{formatRate(rate.rate)} UAH</strong>
-                      </div>
-                    ))
-                  : ['USD', 'EUR'].map((code) => (
-                      <div key={code}>
-                        <span>{code === 'USD' ? 'Dollar' : 'Euro'}</span>
-                        <strong>{isLoadingExchangeRates ? 'Loading' : '-'}</strong>
-                      </div>
-                    ))}
-              </div>
-            )}
-          </section>
         </section>
 
         <aside className="todo-panel" aria-label="Emergency to-do list">

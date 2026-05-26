@@ -114,10 +114,10 @@ select {
 
 .app-layout {
   display: grid;
-  grid-template-columns: minmax(0, 920px) minmax(300px, 360px);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 860px) minmax(300px, 360px);
   align-items: start;
   gap: 18px;
-  width: min(100%, 1300px);
+  width: min(100%, 1500px);
 }
 
 .countdown-panel {
@@ -354,17 +354,16 @@ h1 {
 }
 
 .rates-card {
-  margin-top: 14px;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(145deg, rgba(112, 168, 255, 0.12), rgba(255, 255, 255, 0.035));
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px);
 }
 
 .rates-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
   gap: 14px;
   margin-bottom: 14px;
 }
@@ -384,7 +383,7 @@ h1 {
 
 .rates-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -733,13 +732,34 @@ h1 {
   border: 0;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1320px) {
+  .app-layout {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    max-width: 1160px;
+  }
+
+  .todo-panel {
+    grid-column: 1 / -1;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 920px) {
   .app-layout {
     grid-template-columns: 1fr;
     max-width: 920px;
   }
 
+  .rates-card {
+    order: 2;
+  }
+
+  .countdown-panel {
+    order: 1;
+  }
+
   .todo-panel {
+    order: 3;
     min-height: 0;
   }
 }
