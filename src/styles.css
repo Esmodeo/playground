@@ -278,6 +278,10 @@ h1 {
   margin-top: 14px;
 }
 
+.health-grid.is-hidden {
+  display: none;
+}
+
 .health-card {
   min-width: 0;
   padding: 18px;
