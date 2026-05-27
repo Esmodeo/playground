@@ -1,12 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, Cigarette, Clock3, CloudSun, Pencil, Plus, RefreshCw, Target, Trash2, WineOff, X } from 'lucide-react';
+import {
+  Check,
+  Cigarette,
+  Clock3,
+  CloudSun,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Square,
+  Target,
+  Trash2,
+  WineOff,
+  X,
+} from 'lucide-react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -27,6 +43,7 @@ const ANNUAL_INFLATION_RATE = 0.02;
 const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
 const TODO_COLLECTION = 'todos';
 const HEALTH_SETTINGS_COLLECTION = 'settings';
+const TIME_TRACKER_SETTING_ID = 'timeTracker';
 const PIN_CODE = '2305';
 const NBU_EXCHANGE_RATES_URL = 'https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json';
 const WEATHER_FORECAST_URL =
@@ -130,6 +147,17 @@ function formatDuration(milliseconds) {
   return { days, hours, minutes, seconds };
 }
 
+function formatTrackedTime(milliseconds) {
+  const { days, hours, minutes, seconds } = formatDuration(milliseconds);
+  const totalHours = days * 24 + hours;
+
+  return [
+    totalHours.toString().padStart(2, '0'),
+    minutes.toString().padStart(2, '0'),
+    seconds.toString().padStart(2, '0'),
+  ].join(':');
+}
+
 function formatElapsedTime(milliseconds) {
   const { days, hours, minutes, seconds } = formatDuration(milliseconds);
 
@@ -170,6 +198,29 @@ function mapTodosSnapshot(snapshot) {
     id: todoDoc.id,
     ...todoDoc.data(),
   }));
+}
+
+function normalizeTimeTracker(data) {
+  return {
+    activeStartedAt: typeof data?.activeStartedAt === 'string' ? data.activeStartedAt : '',
+    isActive: Boolean(data?.isActive),
+    trackedMilliseconds: Number.isFinite(data?.trackedMilliseconds) ? data.trackedMilliseconds : 0,
+  };
+}
+
+function getTrackedMilliseconds(tracker, currentDate) {
+  const trackedMilliseconds = Math.max(0, tracker.trackedMilliseconds);
+
+  if (!tracker.isActive || !tracker.activeStartedAt) {
+    return trackedMilliseconds;
+  }
+
+  const activeStartedAt = new Date(tracker.activeStartedAt);
+  if (Number.isNaN(activeStartedAt.getTime())) {
+    return trackedMilliseconds;
+  }
+
+  return trackedMilliseconds + Math.max(0, currentDate.getTime() - activeStartedAt.getTime());
 }
 
 function formatRate(value) {
@@ -249,6 +300,13 @@ function App() {
   const [weather, setWeather] = useState(null);
   const [weatherError, setWeatherError] = useState('');
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+  const [timeTracker, setTimeTracker] = useState({
+    activeStartedAt: '',
+    isActive: false,
+    trackedMilliseconds: 0,
+  });
+  const [trackerError, setTrackerError] = useState('');
+  const [isSyncingTracker, setIsSyncingTracker] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -310,6 +368,23 @@ function App() {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
+  }, [isUnlocked, todoUserId]);
+
+  useEffect(() => {
+    if (!isUnlocked || !todoUserId) {
+      return undefined;
+    }
+
+    return onSnapshot(
+      doc(db, HEALTH_SETTINGS_COLLECTION, TIME_TRACKER_SETTING_ID),
+      (snapshot) => {
+        setTimeTracker(normalizeTimeTracker(snapshot.data()));
+        setTrackerError('');
+      },
+      () => {
+        setTrackerError('Could not load tracker');
+      },
+    );
   }, [isUnlocked, todoUserId]);
 
   useEffect(() => {
@@ -395,9 +470,24 @@ function App() {
     };
   }, [isUnlocked]);
 
+  useEffect(() => {
+    if (!isUnlocked || !todoUserId || !timeTracker.isActive) {
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      syncActiveTimeTracker();
+    }, 60000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [isUnlocked, todoUserId, timeTracker]);
+
   const countdown = useMemo(() => getCountdown(now), [now]);
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
   const overallProgress = useMemo(() => getOverallProgress(now), [now]);
+  const trackedMilliseconds = useMemo(() => getTrackedMilliseconds(timeTracker, now), [now, timeTracker]);
   const healthSections = Object.entries(HEALTH_DEFAULTS).map(([id, section]) => ({
     ...section,
     id,
@@ -513,6 +603,104 @@ function App() {
       await deleteDoc(doc(db, TODO_COLLECTION, id));
     } catch {
       setTodoError('Could not delete task');
+    }
+  }
+
+  async function saveTimeTracker(nextTracker) {
+    await setDoc(
+      doc(db, HEALTH_SETTINGS_COLLECTION, TIME_TRACKER_SETTING_ID),
+      {
+        activeStartedAt: nextTracker.activeStartedAt,
+        isActive: nextTracker.isActive,
+        trackedMilliseconds: Math.max(0, Math.round(nextTracker.trackedMilliseconds)),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  async function startTimeTracker() {
+    if (!todoUserId || timeTracker.isActive) {
+      return;
+    }
+
+    try {
+      await saveTimeTracker({
+        activeStartedAt: new Date().toISOString(),
+        isActive: true,
+        trackedMilliseconds: getTrackedMilliseconds(timeTracker, new Date()),
+      });
+      setTrackerError('');
+    } catch {
+      setTrackerError('Could not start tracker');
+    }
+  }
+
+  async function stopTimeTracker() {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await saveTimeTracker({
+        activeStartedAt: '',
+        isActive: false,
+        trackedMilliseconds: getTrackedMilliseconds(timeTracker, new Date()),
+      });
+      setTrackerError('');
+    } catch {
+      setTrackerError('Could not stop tracker');
+    }
+  }
+
+  async function syncActiveTimeTracker() {
+    if (!todoUserId || !timeTracker.isActive) {
+      return;
+    }
+
+    try {
+      await saveTimeTracker({
+        activeStartedAt: new Date().toISOString(),
+        isActive: true,
+        trackedMilliseconds: getTrackedMilliseconds(timeTracker, new Date()),
+      });
+      setTrackerError('');
+    } catch {
+      setTrackerError('Could not sync tracker');
+    }
+  }
+
+  async function syncTimeTracker() {
+    if (!todoUserId || isSyncingTracker) {
+      return;
+    }
+
+    setIsSyncingTracker(true);
+    try {
+      const snapshot = await getDoc(doc(db, HEALTH_SETTINGS_COLLECTION, TIME_TRACKER_SETTING_ID));
+      setTimeTracker(normalizeTimeTracker(snapshot.data()));
+      setTrackerError('');
+    } catch {
+      setTrackerError('Could not sync tracker');
+    } finally {
+      setIsSyncingTracker(false);
+    }
+  }
+
+  async function clearTimeTracker() {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await saveTimeTracker({
+        activeStartedAt: '',
+        isActive: false,
+        trackedMilliseconds: 0,
+      });
+      setTrackerError('');
+    } catch {
+      setTrackerError('Could not clear tracker');
     }
   }
 
@@ -726,71 +914,101 @@ function App() {
           </div>
         </section>
 
-        <aside className="todo-panel" aria-label="Emergency to-do list">
-          <div className="todo-header">
-            <p className="kicker">Emergency tasks</p>
-          </div>
-
-          <form className="todo-form" onSubmit={addTodo}>
-            <label className="sr-only" htmlFor="todo-input">
-              Add emergency task
-            </label>
-            <input
-              disabled={!todoUserId}
-              id="todo-input"
-              onChange={(event) => setTodoText(event.target.value)}
-              placeholder={todoUserId ? 'Add urgent task' : 'Connecting'}
-              value={todoText}
-            />
-            <button type="submit" aria-label="Add task" disabled={!todoUserId || !todoText.trim()}>
-              <Plus size={18} aria-hidden="true" />
-            </button>
-          </form>
-
-          <div className={todoError ? 'todo-sync is-error' : 'todo-sync'}>
-            <button
-              aria-label="Sync tasks from Firebase"
-              className={isSyncingTodos ? 'todo-sync-button is-syncing' : 'todo-sync-button'}
-              disabled={!todoUserId || isSyncingTodos}
-              onClick={syncTodos}
-              title="Sync tasks from Firebase"
-              type="button"
-            >
-              <RefreshCw size={14} aria-hidden="true" />
-            </button>
-            <span>{todoError || (todoUserId ? 'Synced with Firebase' : 'Connecting to Firebase')}</span>
-          </div>
-
-          {todos.length > 0 ? (
-            <ul className="todo-list">
-              {todos.map((todo) => (
-                <li className={todo.isDone ? 'is-done' : undefined} key={todo.id}>
-                  <button
-                    className="todo-check"
-                    onClick={() => toggleTodo(todo)}
-                    type="button"
-                    aria-label={todo.isDone ? 'Mark task as active' : 'Mark task as done'}
-                  >
-                    {todo.isDone && <Check size={14} aria-hidden="true" />}
-                  </button>
-                  <span>{todo.text}</span>
-                  <button
-                    className="todo-delete"
-                    onClick={() => deleteTodo(todo.id)}
-                    type="button"
-                    aria-label="Delete task"
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="todo-empty">
-              <span>No urgent tasks</span>
+        <div className="right-rail">
+          <section className="timetracker-panel" aria-label="Timetracker">
+            <div className="timetracker-header">
+              <p className="kicker">Timetracker</p>
+              <span>{timeTracker.isActive ? 'Active' : 'Stopped'}</span>
             </div>
-          )}
-        </aside>
+            <strong className="timetracker-value">{formatTrackedTime(trackedMilliseconds)}</strong>
+            <div className="timetracker-actions">
+              <button
+                className={timeTracker.isActive ? 'tracker-stop' : 'tracker-play'}
+                disabled={!todoUserId}
+                onClick={timeTracker.isActive ? stopTimeTracker : startTimeTracker}
+                type="button"
+              >
+                {timeTracker.isActive ? <Square size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+                <span>{timeTracker.isActive ? 'Stop' : 'Play'}</span>
+              </button>
+              <button disabled={!todoUserId || isSyncingTracker} onClick={syncTimeTracker} type="button">
+                <RefreshCw size={15} aria-hidden="true" />
+                <span>Sync</span>
+              </button>
+              <button disabled={!todoUserId} onClick={clearTimeTracker} type="button">
+                <RotateCcw size={15} aria-hidden="true" />
+                <span>Clear</span>
+              </button>
+            </div>
+            {trackerError && <p className="tracker-error">{trackerError}</p>}
+          </section>
+
+          <aside className="todo-panel" aria-label="Emergency to-do list">
+            <div className="todo-header">
+              <p className="kicker">Emergency tasks</p>
+            </div>
+
+            <form className="todo-form" onSubmit={addTodo}>
+              <label className="sr-only" htmlFor="todo-input">
+                Add emergency task
+              </label>
+              <input
+                disabled={!todoUserId}
+                id="todo-input"
+                onChange={(event) => setTodoText(event.target.value)}
+                placeholder={todoUserId ? 'Add urgent task' : 'Connecting'}
+                value={todoText}
+              />
+              <button type="submit" aria-label="Add task" disabled={!todoUserId || !todoText.trim()}>
+                <Plus size={18} aria-hidden="true" />
+              </button>
+            </form>
+
+            <div className={todoError ? 'todo-sync is-error' : 'todo-sync'}>
+              <button
+                aria-label="Sync tasks from Firebase"
+                className={isSyncingTodos ? 'todo-sync-button is-syncing' : 'todo-sync-button'}
+                disabled={!todoUserId || isSyncingTodos}
+                onClick={syncTodos}
+                title="Sync tasks from Firebase"
+                type="button"
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+              </button>
+              <span>{todoError || (todoUserId ? 'Synced with Firebase' : 'Connecting to Firebase')}</span>
+            </div>
+
+            {todos.length > 0 ? (
+              <ul className="todo-list">
+                {todos.map((todo) => (
+                  <li className={todo.isDone ? 'is-done' : undefined} key={todo.id}>
+                    <button
+                      className="todo-check"
+                      onClick={() => toggleTodo(todo)}
+                      type="button"
+                      aria-label={todo.isDone ? 'Mark task as active' : 'Mark task as done'}
+                    >
+                      {todo.isDone && <Check size={14} aria-hidden="true" />}
+                    </button>
+                    <span>{todo.text}</span>
+                    <button
+                      className="todo-delete"
+                      onClick={() => deleteTodo(todo.id)}
+                      type="button"
+                      aria-label="Delete task"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="todo-empty">
+                <span>No urgent tasks</span>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
 
       {healthEditor && (
