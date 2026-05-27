@@ -40,7 +40,8 @@ select {
   isolation: isolate;
   display: grid;
   min-height: 100vh;
-  place-items: center;
+  align-items: start;
+  justify-items: center;
   padding: 28px;
   background:
     radial-gradient(circle at 18% 12%, rgba(78, 224, 164, 0.18), transparent 30%),
