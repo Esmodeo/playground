@@ -5,6 +5,8 @@ import {
   Cigarette,
   Clock3,
   CloudSun,
+  FileText,
+  Folder,
   Pencil,
   Play,
   Plus,
@@ -42,6 +44,8 @@ const MONTHLY_AMOUNT = 3000;
 const ANNUAL_INFLATION_RATE = 0.02;
 const YEAR_IN_MILLISECONDS = 365.2425 * 24 * 60 * 60 * 1000;
 const TODO_COLLECTION = 'todos';
+const NOTE_CATEGORIES_COLLECTION = 'noteCategories';
+const NOTES_COLLECTION = 'notes';
 const HEALTH_SETTINGS_COLLECTION = 'settings';
 const TIME_TRACKER_SETTING_ID = 'timeTracker';
 const PIN_CODE = '2305';
@@ -193,10 +197,25 @@ function getTodosQuery() {
   return query(collection(db, TODO_COLLECTION), orderBy('createdAt', 'desc'));
 }
 
+function getNoteCategoriesQuery() {
+  return query(collection(db, NOTE_CATEGORIES_COLLECTION), orderBy('createdAt', 'asc'));
+}
+
+function getNotesQuery() {
+  return query(collection(db, NOTES_COLLECTION), orderBy('createdAt', 'desc'));
+}
+
 function mapTodosSnapshot(snapshot) {
   return snapshot.docs.map((todoDoc) => ({
     id: todoDoc.id,
     ...todoDoc.data(),
+  }));
+}
+
+function mapSnapshotDocuments(snapshot) {
+  return snapshot.docs.map((snapshotDoc) => ({
+    id: snapshotDoc.id,
+    ...snapshotDoc.data(),
   }));
 }
 
@@ -307,6 +326,12 @@ function App() {
   });
   const [trackerError, setTrackerError] = useState('');
   const [isSyncingTracker, setIsSyncingTracker] = useState(false);
+  const [noteCategories, setNoteCategories] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [categoryText, setCategoryText] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [notesError, setNotesError] = useState('');
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 250);
@@ -385,6 +410,50 @@ function App() {
         setTrackerError('Could not load tracker');
       },
     );
+  }, [isUnlocked, todoUserId]);
+
+  useEffect(() => {
+    if (!isUnlocked || !todoUserId) {
+      setNoteCategories([]);
+      setNotes([]);
+      setSelectedCategoryId('');
+      return undefined;
+    }
+
+    const unsubscribeCategories = onSnapshot(
+      getNoteCategoriesQuery(),
+      (snapshot) => {
+        const nextCategories = mapSnapshotDocuments(snapshot);
+        setNoteCategories(nextCategories);
+        setSelectedCategoryId((currentId) => {
+          if (nextCategories.some((category) => category.id === currentId)) {
+            return currentId;
+          }
+
+          return nextCategories[0]?.id || '';
+        });
+        setNotesError('');
+      },
+      () => {
+        setNotesError('Could not load categories');
+      },
+    );
+
+    const unsubscribeNotes = onSnapshot(
+      getNotesQuery(),
+      (snapshot) => {
+        setNotes(mapSnapshotDocuments(snapshot));
+        setNotesError('');
+      },
+      () => {
+        setNotesError('Could not load notes');
+      },
+    );
+
+    return () => {
+      unsubscribeCategories();
+      unsubscribeNotes();
+    };
   }, [isUnlocked, todoUserId]);
 
   useEffect(() => {
@@ -488,6 +557,8 @@ function App() {
   const duration = useMemo(() => formatDuration(countdown.millisecondsLeft), [countdown.millisecondsLeft]);
   const overallProgress = useMemo(() => getOverallProgress(now), [now]);
   const trackedMilliseconds = useMemo(() => getTrackedMilliseconds(timeTracker, now), [now, timeTracker]);
+  const selectedCategory = noteCategories.find((category) => category.id === selectedCategoryId);
+  const visibleNotes = notes.filter((note) => note.categoryId === selectedCategoryId);
   const healthSections = Object.entries(HEALTH_DEFAULTS).map(([id, section]) => ({
     ...section,
     id,
@@ -704,6 +775,81 @@ function App() {
     }
   }
 
+  async function addNoteCategory(event) {
+    event.preventDefault();
+
+    const title = categoryText.trim();
+    if (!title || !todoUserId) {
+      return;
+    }
+
+    setCategoryText('');
+    try {
+      const categoryRef = await addDoc(collection(db, NOTE_CATEGORIES_COLLECTION), {
+        createdAt: serverTimestamp(),
+        title,
+      });
+      setSelectedCategoryId(categoryRef.id);
+      setNotesError('');
+    } catch {
+      setCategoryText(title);
+      setNotesError('Could not add category');
+    }
+  }
+
+  async function deleteNoteCategory(categoryId) {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await Promise.all([
+        deleteDoc(doc(db, NOTE_CATEGORIES_COLLECTION, categoryId)),
+        ...notes
+          .filter((note) => note.categoryId === categoryId)
+          .map((note) => deleteDoc(doc(db, NOTES_COLLECTION, note.id))),
+      ]);
+      setNotesError('');
+    } catch {
+      setNotesError('Could not delete category');
+    }
+  }
+
+  async function addNote(event) {
+    event.preventDefault();
+
+    const text = noteText.trim();
+    if (!text || !selectedCategoryId || !todoUserId) {
+      return;
+    }
+
+    setNoteText('');
+    try {
+      await addDoc(collection(db, NOTES_COLLECTION), {
+        categoryId: selectedCategoryId,
+        createdAt: serverTimestamp(),
+        text,
+      });
+      setNotesError('');
+    } catch {
+      setNoteText(text);
+      setNotesError('Could not add note');
+    }
+  }
+
+  async function deleteNote(noteId) {
+    if (!todoUserId) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, NOTES_COLLECTION, noteId));
+      setNotesError('');
+    } catch {
+      setNotesError('Could not delete note');
+    }
+  }
+
   function handlePinChange(event) {
     const nextValue = event.target.value.replace(/\D/g, '').slice(0, 4);
     setPinValue(nextValue);
@@ -913,6 +1059,103 @@ function App() {
             })}
           </div>
         </section>
+
+        <aside className="notes-panel" aria-label="Notes with categories">
+          <div className="notes-header">
+            <p className="kicker">Notes</p>
+          </div>
+
+          <form className="notes-category-form" onSubmit={addNoteCategory}>
+            <label className="sr-only" htmlFor="category-input">
+              Add category
+            </label>
+            <input
+              disabled={!todoUserId}
+              id="category-input"
+              onChange={(event) => setCategoryText(event.target.value)}
+              placeholder="New category"
+              value={categoryText}
+            />
+            <button type="submit" aria-label="Add category" disabled={!todoUserId || !categoryText.trim()}>
+              <Plus size={16} aria-hidden="true" />
+            </button>
+          </form>
+
+          {noteCategories.length > 0 ? (
+            <div className="notes-categories" aria-label="Note categories">
+              {noteCategories.map((category) => (
+                <button
+                  className={category.id === selectedCategoryId ? 'is-active' : undefined}
+                  key={category.id}
+                  onClick={() => setSelectedCategoryId(category.id)}
+                  type="button"
+                >
+                  <Folder size={15} aria-hidden="true" />
+                  <span>{category.title}</span>
+                  <small>{notes.filter((note) => note.categoryId === category.id).length}</small>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="notes-empty">
+              <span>No categories</span>
+            </div>
+          )}
+
+          <div className="notes-folder">
+            <div className="notes-folder-heading">
+              <div>
+                <FileText size={16} aria-hidden="true" />
+                <span>{selectedCategory?.title || 'Select category'}</span>
+              </div>
+              {selectedCategory && (
+                <button
+                  aria-label="Delete selected category"
+                  onClick={() => deleteNoteCategory(selectedCategory.id)}
+                  type="button"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            <form className="notes-form" onSubmit={addNote}>
+              <label className="sr-only" htmlFor="note-input">
+                Add note
+              </label>
+              <textarea
+                disabled={!todoUserId || !selectedCategoryId}
+                id="note-input"
+                onChange={(event) => setNoteText(event.target.value)}
+                placeholder={selectedCategoryId ? 'Write note' : 'Create a category first'}
+                rows={3}
+                value={noteText}
+              />
+              <button type="submit" disabled={!todoUserId || !selectedCategoryId || !noteText.trim()}>
+                Add note
+              </button>
+            </form>
+
+            {visibleNotes.length > 0 ? (
+              <ul className="notes-list">
+                {visibleNotes.map((note) => (
+                  <li key={note.id}>
+                    <span>{note.text}</span>
+                    <button aria-label="Delete note" onClick={() => deleteNote(note.id)} type="button">
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="notes-empty">
+                <span>No notes</span>
+              </div>
+            )}
+          </div>
+
+          {notesError && <p className="notes-error">{notesError}</p>}
+        </aside>
 
         <div className="right-rail">
           <section className="timetracker-panel" aria-label="Timetracker">

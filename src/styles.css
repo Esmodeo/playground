@@ -505,6 +505,7 @@ h1 {
 }
 
 .timetracker-panel,
+.notes-panel,
 .todo-panel {
   width: 100%;
   padding: 24px;
@@ -513,6 +514,10 @@ h1 {
   background: rgba(14, 20, 29, 0.76);
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(18px);
+}
+
+.notes-panel {
+  grid-column: 4;
 }
 
 .todo-panel {
@@ -587,6 +592,197 @@ h1 {
 }
 
 .tracker-error {
+  margin: 12px 0 0;
+  color: var(--rose);
+  font-size: 0.78rem;
+}
+
+.notes-header {
+  margin-bottom: 16px;
+}
+
+.notes-header .kicker {
+  margin-bottom: 0;
+}
+
+.notes-category-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.notes-category-form input,
+.notes-form textarea {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+}
+
+.notes-category-form input {
+  height: 38px;
+  padding: 0 11px;
+}
+
+.notes-form textarea {
+  width: 100%;
+  padding: 11px;
+  resize: vertical;
+}
+
+.notes-category-form input:focus,
+.notes-form textarea:focus {
+  border-color: rgba(78, 224, 164, 0.58);
+  box-shadow: 0 0 0 3px rgba(78, 224, 164, 0.14);
+}
+
+.notes-category-form button,
+.notes-folder-heading button,
+.notes-form button,
+.notes-list button {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+}
+
+.notes-category-form button {
+  width: 38px;
+  height: 38px;
+  color: var(--green);
+}
+
+.notes-category-form button:disabled,
+.notes-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.notes-categories {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.notes-categories button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--ink);
+  text-align: left;
+}
+
+.notes-categories button.is-active {
+  border-color: rgba(78, 224, 164, 0.48);
+  background: rgba(78, 224, 164, 0.14);
+  color: var(--green);
+}
+
+.notes-categories span,
+.notes-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notes-categories small {
+  color: var(--muted);
+}
+
+.notes-folder {
+  display: grid;
+  gap: 12px;
+}
+
+.notes-folder-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--green);
+}
+
+.notes-folder-heading div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-folder-heading span {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.notes-folder-heading button,
+.notes-list button {
+  width: 30px;
+  height: 30px;
+  color: var(--rose);
+}
+
+.notes-form {
+  display: grid;
+  gap: 8px;
+}
+
+.notes-form button {
+  min-height: 38px;
+  color: var(--green);
+  font-weight: 800;
+}
+
+.notes-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notes-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 8px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.notes-list span {
+  color: #dce8ff;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.notes-empty {
+  display: grid;
+  min-height: 74px;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.84rem;
+}
+
+.notes-error {
   margin: 12px 0 0;
   color: var(--rose);
   font-size: 0.78rem;
@@ -894,8 +1090,8 @@ h1 {
 
 @media (max-width: 1600px) {
   .app-layout {
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(300px, 360px);
-    max-width: 1240px;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) repeat(2, minmax(280px, 320px));
+    max-width: 1560px;
   }
 
   .left-rail {
@@ -907,13 +1103,17 @@ h1 {
   }
 
   .right-rail {
+    grid-column: 4;
+  }
+
+  .notes-panel {
     grid-column: 3;
   }
 }
 
 @media (max-width: 1320px) {
   .app-layout {
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 320px);
     max-width: 1160px;
   }
 
@@ -923,6 +1123,10 @@ h1 {
 
   .right-rail {
     grid-column: 1 / -1;
+  }
+
+  .notes-panel {
+    grid-column: 3;
   }
 
   .todo-panel {
@@ -949,6 +1153,11 @@ h1 {
   .right-rail {
     grid-column: 1;
     order: 3;
+  }
+
+  .notes-panel {
+    grid-column: 1;
+    order: 4;
   }
 
   .todo-panel {

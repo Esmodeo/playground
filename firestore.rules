@@ -10,6 +10,14 @@ service cloud.firestore {
       allow read, create, update, delete: if request.auth != null;
     }
 
+    match /noteCategories/{categoryId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+
+    match /notes/{noteId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+
     match /settings/{settingId} {
       allow read, create, update, delete: if request.auth != null;
     }
