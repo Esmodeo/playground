@@ -42,7 +42,7 @@ select {
   min-height: 100vh;
   align-items: start;
   justify-items: center;
-  padding: 28px;
+  padding: 28px 28px 92px;
   background:
     radial-gradient(circle at 18% 12%, rgba(78, 224, 164, 0.18), transparent 30%),
     radial-gradient(circle at 84% 24%, rgba(112, 168, 255, 0.2), transparent 34%),
@@ -132,7 +132,7 @@ select {
   grid-column: 5;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 120px);
   min-height: 0;
 }
 
