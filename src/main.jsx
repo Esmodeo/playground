@@ -1024,7 +1024,7 @@ function App() {
             </div>
           </div>
 
-          <div className="health-grid is-hidden" aria-label="Health streak counters">
+          <div className="health-grid" aria-label="Health streak counters">
             {healthSections.map((section) => {
               const { icon: Icon, startDate, title } = section;
 
